@@ -1,0 +1,7 @@
+.venv
+gdrive_mcp/
+.env
+credentials.json
+token.pickle
+_playground.py 
+__pycache__
