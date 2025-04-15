@@ -4,7 +4,7 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 
 # Create LangChain agent
-from app.tools.file_browsing_tools import ListAllFilesTool,SearchFilesTool, GetFileMetadataTool, ListFolderFilesTool
+from app.tools.file_browsing_tools import ListAllFilesTool,SearchFilesTool, GetFileMetadataTool, ListFolderFilesTool, UploadFileToDriveTool
 from app.tools.file_content_tools import ReadFileTool, ExtractInfoTool, ParseDocumentTool, AnswerQuestionTool, SearchInDocumentTool, SummarizeDocumentTool
 import os
 from dotenv import load_dotenv
@@ -24,7 +24,8 @@ def create_drive_agent():
         ExtractInfoTool(),
         SummarizeDocumentTool(),
         SearchInDocumentTool(),
-        AnswerQuestionTool()
+        AnswerQuestionTool(),
+        UploadFileToDriveTool()
     ]
 
     # Create OpenAI-based agent
@@ -44,6 +45,7 @@ Follow these steps when analyzing documents:
    - Use summarize_document to get the gist of the document
    - Use search_in_document to find specific information
    - Use answer_question to answer specific questions about the content
+   - Use upload_file_to_drive to Upload a local file to Google Drive. Optionally specify a folder to upload into.
 
 Always provide helpful responses about file operations and guide users through their Google Drive interactions."""
     

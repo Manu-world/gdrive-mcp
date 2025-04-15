@@ -36,27 +36,13 @@ async def process_message(message: str, thread_id: str = None) -> str:
 
     try:
         result = await agent.ainvoke({"messages": message}, config=config)
+        
         if isinstance(result, dict) and "messages" in result:
             for msg in reversed(result["messages"]):
                 if isinstance(msg, AIMessage):
+                    print("response:", msg.content)
                     return msg.content
             return "Couldn't generate a proper response."
         return str(result)
     except Exception as e:
         return f"Error: {str(e)}"
-
-# if __name__ == "__main__":
-#     import asyncio
-#     print("Welcome to DriveAssistant! How can I help you with your Google Drive today?")
-#     asyncio.run(init_agent())
-    
-#     while True:
-#         user_input = input("\nYou: ")
-#         if user_input.lower() in ['exit', 'quit', 'bye']:
-#             print("DriveAssistant: Goodbye!")
-#             break
-#         try:
-#             response = asyncio.run(process_message(user_input, thread_id="1234"))
-#             print(f"\nDriveAssistant: {response}")
-#         except Exception as e:
-#             print(f"\nDriveAssistant: I encountered an error: {str(e)}")

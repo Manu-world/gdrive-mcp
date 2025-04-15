@@ -75,6 +75,10 @@ async def get_available_tools() -> Dict[str, Any]:
         {
             "name": "answer_question",
             "description": "Answers specific questions about file contents"
+        },
+        {
+            "name": "upload_file_to_drive",
+            "description": "Uploads a local file to Google Drive. Optionally specify a folder to upload into."
         }
     ]
     

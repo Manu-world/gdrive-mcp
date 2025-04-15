@@ -15,6 +15,8 @@ import datetime
 
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
+from googleapiclient.http import MediaFileUpload
+
 
 
 # Define the scopes required for Google Drive access
@@ -405,3 +407,30 @@ class GetFileMetadataTool(BaseTool):
         except Exception as e:
             return f"Error retrieving file metadata: {str(e)}"
 
+class UploadFileInput(BaseModel):
+    file_path: str = Field(..., description="Path to the local file to upload")
+    folder_id: Optional[str] = Field(None, description="Optional Google Drive folder ID to upload the file into")
+
+class UploadFileToDriveTool(BaseTool):
+    name: str = "upload_file_to_drive"
+    description: str = "Uploads a local file to Google Drive. Optionally specify a folder to upload into."
+    args_schema: type[UploadFileInput] = UploadFileInput
+
+    def _run(self, file_path: str, folder_id: Optional[str] = None) -> str:
+        try:
+            service = get_drive_service()
+            file_metadata = {'name': os.path.basename(file_path)}
+            if folder_id:
+                file_metadata['parents'] = [folder_id]
+
+            media = MediaFileUpload(file_path, resumable=True)
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id, name, webViewLink'
+            ).execute()
+
+            return f"✅ File uploaded successfully!\nName: {file['name']}\nID: {file['id']}\nLink: {file['webViewLink']}"
+        
+        except Exception as e:
+            return f"❌ Failed to upload file: {str(e)}"
