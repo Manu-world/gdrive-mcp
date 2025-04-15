@@ -28,7 +28,7 @@ def create_drive_agent():
     ]
 
     # Create OpenAI-based agent
-    llm = ChatOpenAI(model="gpt-4", temperature=0.2, api_key=os.getenv("OPENAI_API_KEY"))
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.2, api_key=os.getenv("OPENAI_API_KEY"))
     
     # Define a system message that explains what the agent does
     system_message = """You are DriveAssistant, an AI agent specialized in managing Google Drive files.
@@ -37,7 +37,7 @@ For document analysis, you can read files, parse them into sections, extract key
 search inside documents, and answer questions about their contents.
 
 Follow these steps when analyzing documents:
-1. First read the document to access its content
+1. First use the search_file tool to search for specific document(s) based on necessary filters to access its content
 2. Then use the appropriate tool based on what the user needs:
    - Use parse_document to break down document structure
    - Use extract_information to identify dates, names, emails, etc.

@@ -16,6 +16,7 @@ A powerful WhatsApp bot that integrates with Google Drive through a Model-Contro
 - Python 3.8+
 - OpenAI API key
 - Google Cloud credentials
+- oauth2client<4.0.0 (required for Google Drive API file cache support)
 
 ## Installation
 
@@ -135,4 +136,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - OpenAI for the GPT models
 - Google for the Drive API
 - WhatsApp for the Business API
-- The LangChain and LangGraph teams for their amazing frameworks 
+- The LangChain and LangGraph teams for their amazing frameworks
+
+## Troubleshooting
+
+### Common Issues
+
+1. **File Cache Warning**
+   ```
+   file_cache is only supported with oauth2client<4.0.0
+   ```
+   Solution: Ensure you have the correct version of oauth2client installed:
+   ```bash
+   pip install "oauth2client<4.0.0"
+   ```
+
+2. **Google Drive API Authentication**
+   - Make sure your Google Cloud credentials file is properly set up
+   - Verify the `GOOGLE_APPLICATION_CREDENTIALS` environment variable points to the correct file
+   - Ensure the service account has the necessary Drive API permissions
+
+3. **OpenAI API Issues**
+   - Verify your OpenAI API key is valid and has sufficient credits
+   - Check that the model name in the configuration matches your OpenAI subscription
+
+4. **WhatsApp Integration**
+   - Ensure your WhatsApp Business API credentials are valid
+   - Verify the webhook URL is correctly configured in your WhatsApp Business settings
+   - Check that the server is accessible from the internet for webhook callbacks 
