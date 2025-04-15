@@ -3,6 +3,7 @@ Google Drive AI Agent: Reading & Parsing Files
 This extension adds document reading and analysis capabilities to the Google Drive Agent.
 """
 
+import logging
 import os
 import re
 import io
@@ -892,3 +893,439 @@ class AnswerQuestionTool(BaseTool):
         except Exception as e:
             return f"Error answering question: {str(e)}"
 
+
+# new functions for tools 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Optional shared file cache
+file_cache: Dict[str, Any] = {}
+
+def read_file_content(file_id: str, max_pages: int = 5) -> str:
+    """
+    Reads the content of a text-based file in Google Drive.
+
+    Args:
+        file_id (str): The ID of the file to read.
+        max_pages (int, optional): Max number of pages to read for PDFs. Default is 5.
+
+    Returns:
+        str: A human-readable summary with content preview or an error message.
+    """
+    try:
+        logger.info(f"Reading file content for file_id: {file_id}")
+        service = get_drive_service()
+        file_reader = FileReader(service)
+        result = file_reader.read_file(file_id, max_pages)
+
+        if result['status'] == 'error':
+            return f"Error reading file: {result['error']}"
+
+        file_name = result['file_name']
+        mime_type = result['mime_type']
+        content = result['content']
+
+        output = f"Successfully read '{file_name}' ({mime_type}).\n\n"
+
+        if 'pages' in result:
+            output += f"PDF document with {result['pages']} pages. Read {result['pages_read']} page(s).\n\n"
+
+        # Preview
+        preview_length = min(500, len(content))
+        output += "Content preview:\n" + content[:preview_length]
+        if len(content) > preview_length:
+            output += "...\n[Content truncated for preview]"
+
+        # Optional: store content in shared memory for other tools
+        file_cache[file_id] = {
+            'file_name': file_name,
+            'mime_type': mime_type,
+            'content': content,
+            'access_time': datetime.datetime.now()
+        }
+
+        logger.info(f"File '{file_name}' read and cached successfully.")
+        return output
+
+    except Exception as e:
+        logger.error(f"Failed to read file {file_id}", exc_info=True)
+        return f"Error reading file: {str(e)}"
+    
+
+def parse_document_content(file_id: str, parse_level: str = "sections") -> str:
+    """
+    Parses a document from Google Drive into sections, paragraphs, or sentences.
+
+    Args:
+        file_id (str): The ID of the file to parse.
+        parse_level (str): One of "sections", "paragraphs", or "sentences".
+
+    Returns:
+        str: A summary of the parsed content or an error message.
+    """
+    try:
+        logger.info(f"Parsing file: {file_id} as {parse_level}")
+
+        # Get file content (from cache or fresh)
+        if file_id in file_cache:
+            file_data = file_cache[file_id]
+            content = file_data['content']
+            file_name = file_data['file_name']
+        else:
+            service = get_drive_service()
+            file_reader = FileReader(service)
+            result = file_reader.read_file(file_id)
+
+            if result['status'] == 'error':
+                return f"Error reading file: {result['error']}"
+
+            content = result['content']
+            file_name = result['file_name']
+
+            # Cache for future use
+            file_cache[file_id] = {
+                'file_name': file_name,
+                'mime_type': result['mime_type'],
+                'content': content,
+                'access_time': datetime.datetime.now()
+            }
+
+        # Parse the document
+        parser = DocumentParser()
+        parsed_content = parser.parse_document(content, parse_level)
+
+        # Format result
+        if parse_level == 'sections':
+            output = f"Parsed '{file_name}' into {len(parsed_content)} sections:\n\n"
+            for i, section in enumerate(parsed_content, 1):
+                title = section.get('title', f'Section {i}')
+                preview = section['content'][:100] + "..." if len(section['content']) > 100 else section['content']
+                output += f"{i}. {title}\n   Preview: {preview}\n\n"
+
+        elif parse_level == 'paragraphs':
+            output = f"Parsed '{file_name}' into {len(parsed_content)} paragraphs:\n\n"
+            for i, para in enumerate(parsed_content[:10], 1):
+                preview = para['content'][:100] + "..." if len(para['content']) > 100 else para['content']
+                output += f"Paragraph {i}: {preview}\n\n"
+            if len(parsed_content) > 10:
+                output += f"[{len(parsed_content) - 10} more paragraphs not shown]\n"
+
+        elif parse_level == 'sentences':
+            output = f"Parsed '{file_name}' into {len(parsed_content)} sentences:\n\n"
+            for i, sent in enumerate(parsed_content[:15], 1):
+                output += f"Sentence {i}: {sent['content']}\n"
+            if len(parsed_content) > 15:
+                output += f"\n[{len(parsed_content) - 15} more sentences not shown]\n"
+
+        else:
+            output = f"Unknown parse level: '{parse_level}'. Use 'sections', 'paragraphs', or 'sentences'."
+
+        return output
+
+    except Exception as e:
+        logger.exception(f"Failed to parse document {file_id}")
+        return f"Error parsing document: {str(e)}"
+
+
+def extract_document_information(file_id: str, info_types: str = "all") -> str:
+    """
+    Extracts key information (dates, names, emails, URLs, headers) from a document.
+
+    Args:
+        file_id (str): The ID of the document to extract from.
+        info_types (str): A comma-separated list or "all".
+
+    Returns:
+        str: A formatted summary of the extracted information.
+    """
+    try:
+        logger.info(f"Extracting info from file: {file_id} with info_types='{info_types}'")
+
+        # Check cache first
+        if file_id in file_cache:
+            file_data = file_cache[file_id]
+            content = file_data['content']
+            file_name = file_data['file_name']
+        else:
+            service = get_drive_service()
+            file_reader = FileReader(service)
+            result = file_reader.read_file(file_id)
+
+            if result['status'] == 'error':
+                return f"Error reading file: {result['error']}"
+
+            content = result['content']
+            file_name = result['file_name']
+
+            # Cache it
+            file_cache[file_id] = {
+                'file_name': file_name,
+                'mime_type': result['mime_type'],
+                'content': content,
+                'access_time': datetime.datetime.now()
+            }
+
+        # Extract information
+        extractor = InformationExtractor()
+        extracted_info = extractor.extract_information(content, info_types)
+
+        # Format the output
+        output = f"Information extracted from '{file_name}':\n\n"
+        categories = {
+            'dates': '📅 Dates',
+            'names': '👤 Potential Names',
+            'emails': '📧 Email Addresses',
+            'urls': '🔗 URLs',
+            'headers': '📑 Document Headers'
+        }
+
+        for key, label in categories.items():
+            if key in extracted_info:
+                output += f"{label}:\n"
+                items = extracted_info[key]
+                if items:
+                    for i, item in enumerate(items[:15], 1):
+                        output += f"  {i}. {item}\n"
+                    if len(items) > 15:
+                        output += f"  [and {len(items) - 15} more {key}...]\n"
+                else:
+                    output += "  No data found.\n"
+                output += "\n"
+
+        return output
+
+    except Exception as e:
+        logger.exception(f"Failed to extract info from document: {file_id}")
+        return f"Error extracting information: {str(e)}"
+
+
+def summarize_document(file_id: str, summary_length: str = "medium") -> str:
+    """
+    Summarizes the document content based on the specified summary length.
+    
+    Args:
+        file_id (str): ID of the document to summarize.
+        summary_length (str): One of "short", "medium", or "long".
+
+    Returns:
+        str: A human-readable summary of the document.
+    """
+    try:
+        logger.info(f"Generating {summary_length} summary for file: {file_id}")
+
+        # Retrieve from cache or fetch from Drive
+        if file_id in file_cache:
+            file_data = file_cache[file_id]
+            content = file_data['content']
+            file_name = file_data['file_name']
+        else:
+            service = get_drive_service()
+            file_reader = FileReader(service)
+            result = file_reader.read_file(file_id)
+
+            if result['status'] == 'error':
+                return f"Error reading file: {result['error']}"
+
+            content = result['content']
+            file_name = result['file_name']
+
+            file_cache[file_id] = {
+                'file_name': file_name,
+                'mime_type': result['mime_type'],
+                'content': content,
+                'access_time': datetime.datetime.now()
+            }
+
+        # Set summary size
+        summary_lengths = {
+            "short": 150,
+            "medium": 250,
+            "long": 500
+        }
+        max_tokens = summary_lengths.get(summary_length.lower(), 250)
+
+        # Setup LLM & splitter
+        llm = ChatOpenAI(temperature=0, max_tokens=max_tokens)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
+        texts = text_splitter.split_text(content)
+
+        # Convert to LangChain documents
+        docs = [LangchainDocument(page_content=t) for t in texts]
+
+        # Summarization
+        chain = load_summarize_chain(llm, chain_type="map_reduce", verbose=False)
+        summary = chain.invoke(docs)
+
+        return (
+            f"Summary of '{file_name}':\n\n{summary}\n\n"
+            f"Note: This is a {summary_length} summary of the document content."
+        )
+
+    except Exception as e:
+        logger.exception("Failed to summarize document")
+        return f"Error summarizing document: {str(e)}"
+
+
+def search_in_document(file_id: str, query: str, case_sensitive: bool = False) -> str:
+    """
+    Searches for keywords or phrases within a document and returns relevant context with matches.
+
+    Args:
+        file_id (str): ID of the document to search.
+        query (str): The keyword or phrase to search for.
+        case_sensitive (bool): If True, the search will be case-sensitive.
+
+    Returns:
+        str: The results of the search, including matches with context and highlighted text.
+    """
+    try:
+        logger.info(f"Searching for '{query}' in file: {file_id}")
+
+        # Retrieve from cache or fetch from Drive
+        if file_id in file_cache:
+            file_data = file_cache[file_id]
+            content = file_data['content']
+            file_name = file_data['file_name']
+        else:
+            service = get_drive_service()
+            file_reader = FileReader(service)
+            result = file_reader.read_file(file_id)
+
+            if result['status'] == 'error':
+                return f"Error reading file: {result['error']}"
+
+            content = result['content']
+            file_name = result['file_name']
+
+            file_cache[file_id] = {
+                'file_name': file_name,
+                'mime_type': result['mime_type'],
+                'content': content,
+                'access_time': datetime.datetime.now()
+            }
+
+        # Split content into sentences
+        sentences = sent_tokenize(content)
+
+        # Perform the search
+        results = []
+        search_flags = re.IGNORECASE if not case_sensitive else 0
+
+        for i, sentence in enumerate(sentences):
+            if re.search(re.escape(query), sentence, search_flags):
+                # Get context (previous and next sentence)
+                start_idx = max(0, i - 1)
+                end_idx = min(len(sentences) - 1, i + 1)
+
+                context = " ".join(sentences[start_idx:end_idx + 1])
+
+                # Highlight the match
+                highlighted = re.sub(
+                    f"({re.escape(query)})",
+                    r"**\1**",  # Bold in markdown
+                    sentence,
+                    flags=search_flags
+                )
+
+                results.append({
+                    'sentence_num': i + 1,
+                    'highlighted': highlighted,
+                    'context': context
+                })
+
+        # Format the output
+        if results:
+            output = f"Found {len(results)} matches for '{query}' in '{file_name}':\n\n"
+
+            for i, result in enumerate(results[:10], 1):
+                output += f"{i}. Match in sentence {result['sentence_num']}:\n"
+                output += f"   {result['highlighted']}\n\n"
+                output += f"   Context: {result['context']}\n\n"
+
+            if len(results) > 10:
+                output += f"[{len(results) - 10} more matches not shown]\n"
+        else:
+            output = f"No matches found for '{query}' in '{file_name}'."
+
+        return output
+
+    except Exception as e:
+        logger.exception("Failed to search in document")
+        return f"Error searching in document: {str(e)}"
+
+
+def answer_question(file_id: str, question: str) -> str:
+    """
+    Answers a specific question based on the content of the provided file.
+    
+    Args:
+        file_id (str): ID of the document to process.
+        question (str): The question to answer based on the document's content.
+    
+    Returns:
+        str: The formatted answer to the question.
+    """
+    try:
+        logger.info(f"Answering question: {question} from file: {file_id}")
+
+        # Retrieve from cache or fetch from Drive
+        if file_id in file_cache:
+            file_data = file_cache[file_id]
+            content = file_data['content']
+            file_name = file_data['file_name']
+        else:
+            service = get_drive_service()
+            file_reader = FileReader(service)
+            result = file_reader.read_file(file_id)
+
+            if result['status'] == 'error':
+                return f"Error reading file: {result['error']}"
+
+            content = result['content']
+            file_name = result['file_name']
+
+            # Cache the content for future use
+            file_cache[file_id] = {
+                'file_name': file_name,
+                'mime_type': result['mime_type'],
+                'content': content,
+                'access_time': datetime.datetime.now()
+            }
+
+        # Split the content into chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        texts = text_splitter.split_text(content)
+
+        # Convert text into LangChain documents with metadata
+        docs = [
+            LangchainDocument(page_content=t, metadata={"source": file_name, "file_id": file_id})
+            for t in texts
+        ]
+
+        # Generate embeddings for the document chunks
+        embeddings = OpenAIEmbeddings()
+
+        # Create a vector store using FAISS
+        vectorstore = FAISS.from_documents(docs, embeddings)
+
+        # Set up the RetrievalQA chain
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=ChatOpenAI(temperature=0),
+            chain_type="stuff", 
+            retriever=vectorstore.as_retriever(search_kwargs={"k": 3})
+        )
+
+        # Retrieve the answer to the question
+        answer = qa_chain.run(question)
+
+        # Format and return the output
+        output = f"Question about '{file_name}':\n"
+        output += f"Q: {question}\n\n"
+        output += f"A: {answer}"
+
+        return output
+
+    except Exception as e:
+        logger.exception("Failed to answer the question")
+        return f"Error answering question: {str(e)}"
