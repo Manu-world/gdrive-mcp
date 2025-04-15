@@ -192,15 +192,13 @@ class ListFolderFilesTool(BaseTool):
 
 class SearchFilesTool(BaseTool):
     name: str = "search_files"
-    description: str = "Searches for files in Google Drive by name, type, or content keywords. Use when looking for specific files."
+    description: str = "Searches for specific files in Google Drive Searches for files by name, file type(pdf, document, docs, sheet, folder etc..), or content. Use when looking for specific files."
     args_schema: type[SearchFilesInput] = SearchFilesInput
     
     def _run(self, query: str, page_size: int = 10) -> str:
-        """Searches for files in Google Drive by name, type, or content keywords."""
+        """Searches for files in Google Drive by name, file type(or file extension), or content keywords."""
         try:
             service = get_drive_service()
-            # Create a search query that looks for the terms in name, full text, and mime type
-            search_query = f"name contains '{query}' or fullText contains '{query}' or mimeType contains '{query}'"
             
             # Handle common file type searches more intuitively
             if query.lower() in ['document', 'doc', 'docs']:
@@ -213,12 +211,22 @@ class SearchFilesTool(BaseTool):
                 search_query = "mimeType = 'application/pdf'"
             elif query.lower() in ['folder', 'directory']:
                 search_query = "mimeType = 'application/vnd.google-apps.folder'"
+            else:
+                
+                words = query.split()
+                name_terms = [f"name contains '{word}'" for word in words]
+                content_terms = [f"fullText contains '{word}'" for word in words]
+                
+                name_query = " or ".join(name_terms)
+                content_query = " or ".join(content_terms)
+                search_query = f"({name_query}) and ({content_query})"
             
             results = service.files().list(
                 q=search_query,
                 pageSize=page_size,
                 fields="nextPageToken, files(id, name, mimeType, createdTime, modifiedTime, size, owners, parents)"
             ).execute()
+            
             items = results.get('files', [])
             
             if not items:
@@ -284,7 +292,7 @@ class GetFileMetadataTool(BaseTool):
         """Gets detailed metadata for a file."""
         try:
             service = get_drive_service()
-            # Get as much metadata as possible
+            # metadata
             file = service.files().get(
                 fileId=file_id,
                 fields="id, name, mimeType, description, createdTime, modifiedTime, modifiedByMeTime, viewedByMeTime, "

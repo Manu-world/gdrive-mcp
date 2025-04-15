@@ -46,7 +46,7 @@ async def get_available_tools() -> Dict[str, Any]:
         },
         {
             "name": "search_files",
-            "description": "Searches for files by name, type, or content"
+            "description": "Searches for files by name, type(pdf, document, docs, sheet, folder etc..), or content"
         },
         {
             "name": "get_file_metadata",
