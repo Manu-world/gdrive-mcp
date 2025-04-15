@@ -40,7 +40,7 @@ async def process_message(message: str, thread_id: str = None) -> str:
         if isinstance(result, dict) and "messages" in result:
             for msg in reversed(result["messages"]):
                 if isinstance(msg, AIMessage):
-                    print("response:", msg.content)
+                    # print("response:", msg.content)
                     return msg.content
             return "Couldn't generate a proper response."
         return str(result)

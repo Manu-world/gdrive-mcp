@@ -14,5 +14,7 @@ async def webhook(request: Request, From: str = Form(...), Body: str = Form(...)
     thread_id = f"{sender}_{today_date}"
     
     response_msg = await process_message(incoming_msg, thread_id)
+    
+    print(f"response: {response_msg}, threadid: {thread_id}")
     send_whatsapp_message(sender, response_msg)
     return Response(status_code=200)
