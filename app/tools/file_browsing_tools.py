@@ -55,7 +55,7 @@ class ListFolderFilesInput(BaseModel):
     page_size: int = Field(default=10, description="Maximum number of files to return")
 
 class SearchFilesInput(BaseModel):
-    query: str = Field(..., description="Search query. Can include file name, type, or content keywords")
+    query: str = Field(..., description="Search query. Can include file name, file type('document', 'doc', 'docs' for word document files, 'spreadsheet', 'sheet', 'sheets' for excel or spreadsheet files, 'presentation', 'slides' for powerpoint files, 'pdf' for pdf files, 'folder', 'directory' for folders or directories), or content keywords")
     page_size: int = Field(default=10, description="Maximum number of files to return")
 
 class GetFileMetadataInput(BaseModel):
@@ -201,18 +201,17 @@ class SearchFilesTool(BaseTool):
             service = get_drive_service()
             
             # Handle common file type searches more intuitively
-            if query.lower() in ['document', 'doc', 'docs']:
+            if query.lower() in ['document', 'doc', 'docs', 'type:document', 'type:doc', 'type:docs']:
                 search_query = "mimeType = 'application/vnd.google-apps.document'"
-            elif query.lower() in ['spreadsheet', 'sheet', 'sheets']:
+            elif query.lower() in ['spreadsheet', 'sheet', 'sheets', 'type:spreadsheet', 'type:sheet', 'type:sheets']:
                 search_query = "mimeType = 'application/vnd.google-apps.spreadsheet'"
-            elif query.lower() in ['presentation', 'slides']:
+            elif query.lower() in ['presentation', 'slides', 'type:presentation', 'type:slides']:
                 search_query = "mimeType = 'application/vnd.google-apps.presentation'"
-            elif query.lower() in ['pdf']:
+            elif query.lower() in ['pdf', 'type:pdf']:
                 search_query = "mimeType = 'application/pdf'"
-            elif query.lower() in ['folder', 'directory']:
+            elif query.lower() in ['folder', 'directory', 'type:folder', 'type:directory']:
                 search_query = "mimeType = 'application/vnd.google-apps.folder'"
             else:
-                
                 words = query.split()
                 name_terms = [f"name contains '{word}'" for word in words]
                 content_terms = [f"fullText contains '{word}'" for word in words]
