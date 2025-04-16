@@ -1,4 +1,5 @@
 .venv
+venv
 .genv
 gdrive_mcp/
 .env
